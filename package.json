@@ -47,6 +47,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.1",
     "@types/node": "^18.16.1",
+    "@types/split2": "^4.2.0",
     "@typescript-eslint/eslint-plugin": "^5.59.1",
     "@typescript-eslint/parser": "^5.59.1",
     "eslint": "^8.39.0",
@@ -61,6 +62,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "serialport": "^10.5.0"
+    "serialport": "^10.5.0",
+    "split2": "^4.2.0"
   }
 }

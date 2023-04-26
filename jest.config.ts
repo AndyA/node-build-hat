@@ -5,10 +5,10 @@ export default {
   coverageThreshold: {
     global: { branches: 100, functions: 100, lines: 100, statements: 100 },
   },
-  testPathIgnorePatterns: ["vendor", "build", "built", "node_modules"],
-  modulePathIgnorePatterns: [".state", "tmp"],
+  testPathIgnorePatterns: ["built", "node_modules"],
+  modulePathIgnorePatterns: ["tmp"],
   transform: {
-    "\\.[jt]sx?$": ["ts-jest", { useESM: true }],
+    "\\.[jt]s$": ["ts-jest", { useESM: true }],
   },
   moduleNameMapper: {
     "(.+)\\.js": "$1",

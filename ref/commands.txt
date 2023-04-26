@@ -1,0 +1,67 @@
+Commands available:
+  help, ?               : display this text
+  port <port>           : select a port (default 0)
+  list                  : list connected devices
+  vin                   : report main power input voltage
+  ledmode <ledmode>     : set LED function
+  clear_faults          : clear latched motor fault conditions
+  coast                 : disable motor driver
+  pwm                   : set current port to direct PWM mode (default)
+  off                   : same as pwm ; set 0
+  on                    : same as pwm ; set 1
+  pid <pidparams>       : set current port to PID control mode with <pidparams>
+  pid_diff <pidparams>  : set current port to PID control mode with <pidparams> and differentiator on process variable
+  set <setpoint>        : configure constant set point for current port
+  set <waveparams>      : configure varying set point for current port
+  pwmparams <pwmparams> : configure parameters for PWM driver
+  plimit <limit>        : set PWM output drive limit for all ports (default 0.1)
+  port_plimit <limit>   : set PWM output drive limit for current port
+  select <var>          : send a SELECT message to select a variable and output it
+  select <mode>         : send a SELECT message to select a mode and output all its data in raw hex
+  select                : stop outputting data
+  selonce <var>         : as 'select' but only report one data packet
+  selonce <mode>        : as 'select' but only report one data packet
+  selrate <rate>        : set reporting period (use after 'select')
+  combi <index> <clist> : configure a combi mode with a list of mode/dataset specifiers
+  combi <index>         : de-configure a combi mode
+  write1 <hexbyte>*     : send message with 1-byte header; pads if necessary, sets payload length and checksum
+  write2 <hexbyte>*     : send message with 2-byte header; pads if necessary, sets payload length and checksum
+  echo <0|1>            : enable/disable echo and prompt on command port
+  debug <debugcode>     : enable debugging output
+  version               : print version string
+  signature             : dump firmware signature
+
+Where:
+  <port>                : 0..3
+  <ledmode>             : 0=off 1=orange 2=green 3=orange+green -1=monitor Vin (default)
+  <setpoint>            : -1..+1 for direct PWM; unrestricted for PID control
+  <pidparams>           : <svar> <Kp> <Ki> <Kd> <windup> <deadzone>
+    <Kp>, <Ki>, <Kd>    : PID controller gains (Ît=1s)
+    <windup>            : PID integral windup limit
+    <deadzone>          : PID dead zone
+  <waveparams>          : square   <min> <max> <period> <phase>
+                        | sine     <min> <max> <period> <phase>
+                        | triangle <min> <max> <period> <phase>
+                        | pulse    <during> <after> <length> 0
+                        | ramp     <from> <to> <duration> 0
+                        | var      <varmap> <svar>
+  <varmap>              : <min> <max> <slope> <offset>
+  <pwmparams>           : <pwmthresh> <minpwm>
+    <pwmthresh>         : threshold for slow/fast PWM switchover (default 0)
+    <minpwm>            : minimum PWM driver input value (default 0)
+  <limit>               : 0..1 as fraction of maximum PWM drive
+  <svar>                : <port> <var> <scale> <unwrap>
+    <scale>             : multiplicative scale factor
+    <unwrap>            : 0=no unwrapping; otherwise modulo for phase unwrap
+  <var>                 : <mode> <offset> <format>
+    <mode>              : mode to fetch variable from
+    <offset>            : variable byte offset into mode
+    <format>            : u1=unsigned byte;  s1=signed byte;
+                          u2=unsigned short; s2=signed short;
+                          u4=unsigned int;   s4=signed int;
+                          f4=float
+  <rate>                : target interval between reports in ms; 0=as reported by device
+  <clist>               : {<mode> <dataset>}*
+  <hexbyte>             : 1- or 2-digit hex value
+  <debugcode>           : OR of 1=serial port; 2=connect/disconnect; 4=signature;
+                          8=DATA payload; 16=PID controller; 32=unknown messages
