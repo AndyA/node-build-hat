@@ -1,5 +1,7 @@
+import _ from "lodash";
 import { BuildHAT } from "./buildhat";
 import { DeviceInfo } from "./devicelist";
+import { LinePredicate } from "./serial";
 
 export type DeviceType<T extends Device> = {
   new (hat: BuildHAT, info: DeviceInfo, index: number): T;
@@ -33,6 +35,35 @@ const isOneShot = (n: WaveForm | number): n is OneShot =>
 const isWaveForm = (n: WaveForm | number): n is WaveForm =>
   isCycle(n) || isOneShot(n);
 
+type Format = "u1" | "s1" | "u2" | "s2" | "u4" | "s4" | "f4";
+
+interface SelectVar {
+  mode: number;
+  offset: number;
+  format: Format;
+}
+
+const expandMode = (
+  m: number | SelectVar
+): [number] | [number, number, Format] =>
+  typeof m === "number" ? [m] : [m.mode, m.offset, m.format];
+
+const literalToRegExp = (lit: string): RegExp =>
+  new RegExp(lit.split(/\s+/).map(_.escapeRegExp).join("\\s+"), "i");
+
+const predicate = (test: string | RegExp | LinePredicate): LinePredicate =>
+  typeof test === "string"
+    ? predicate(literalToRegExp(test))
+    : test instanceof RegExp
+    ? (line: string) => test.test(line)
+    : test;
+
+const parseModeResponse = (line: string): number[] => {
+  const m = line.match(/^P\d+M\d+:\s*(.*)/);
+  if (!m) throw new Error(`Bad mode response: "${line}"`);
+  return m[1].split(/\s+/).map(Number);
+};
+
 export class Device {
   hat: BuildHAT;
   info: DeviceInfo;
@@ -61,10 +92,11 @@ export class Device {
     if (isWaveForm(n)) {
       if (isOneShot(n)) {
         const { shape, start, end, duration } = n;
-        const done = (line: string) => line === `P${this.index}: ${shape} done`;
-        const prom = this.hat.waitFor(done);
+        const done = this.hat.waitFor(
+          predicate(`P${this.index}: ${shape} done`)
+        );
         await this.send(`set ${shape} ${start} ${end} ${duration} 0`);
-        await prom;
+        await done;
       } else if (isCycle(n)) {
         const { shape, min, max, period, phase } = n;
         await this.send(`set ${shape} ${min} ${max} ${period} ${phase ?? 0}`);
@@ -76,6 +108,19 @@ export class Device {
 
   async bias(n: number): Promise<void> {
     await this.send(`bias ${n}`);
+  }
+
+  private prepareSelect(modeOrVar: number | SelectVar) {
+    const args = expandMode(modeOrVar);
+    const pred = predicate(new RegExp(`^P${this.index}M${args[0]}:`, "i"));
+    return { pred, args: args.join(" ") };
+  }
+
+  async selOnce(modeOrVar: number | SelectVar): Promise<number[]> {
+    const { args, pred } = this.prepareSelect(modeOrVar);
+    const done = this.hat.waitFor(pred);
+    await this.send(`selonce ${args}`);
+    return parseModeResponse(await done);
   }
 }
 

@@ -10,17 +10,18 @@ interface LogMessage {
 
 type SerialDeviceEvents = {
   line: [line: string];
-  capture: [line: string];
-  all: [line: string];
   error: [err: Error];
-  nextJob: [];
   log: [msg: LogMessage];
+  nextJob: [];
 };
+
+export type LinePredicate = (line: string) => boolean;
 
 export class SerialDevice extends TypedEventEmitter<SerialDeviceEvents> {
   #port: SerialPort;
   #initDone = false;
   #queue: (() => Promise<unknown>)[] = [];
+  #watchers = new Set<LinePredicate>();
 
   constructor(path: string, baudRate: number) {
     super();
@@ -35,15 +36,25 @@ export class SerialDevice extends TypedEventEmitter<SerialDeviceEvents> {
       port.pipe(split2("\r\n")).on("data", (raw: string) => {
         const line = raw.trimEnd();
         this.emit("log", { type: "rx", line });
-        this.emit(this.capture ? "capture" : "line", line);
-        this.emit("all", line);
+        if (!this.showWatchers(line)) this.emit("line", line);
       });
       this.#initDone = true;
     }
   }
 
-  get capture(): Boolean {
-    return this.listenerCount("capture") > 0;
+  addWatcher(w: LinePredicate): this {
+    this.#watchers.add(w);
+    return this;
+  }
+
+  removeWatcher(w: LinePredicate): this {
+    this.#watchers.delete(w);
+    return this;
+  }
+
+  private showWatchers(line: string): boolean {
+    for (const w of this.#watchers.values()) if (w(line)) return true;
+    return false;
   }
 
   close() {
@@ -93,11 +104,11 @@ export class SerialDevice extends TypedEventEmitter<SerialDeviceEvents> {
           const keepLine = (line: string) => {
             if (line.length) lines.push(line);
             if (pred(line)) {
-              this.off("capture", keepLine);
+              this.off("line", keepLine);
               resolve(lines);
             }
           };
-          this.on("capture", keepLine);
+          this.on("line", keepLine);
           await this.immediate(cmd);
         })
     );
@@ -108,15 +119,17 @@ export class SerialDevice extends TypedEventEmitter<SerialDeviceEvents> {
     await this.wait(cmd, line => line === "" || /^P\d+>/i.test(line));
   }
 
-  waitFor(pred: (line: string) => boolean): Promise<void> {
+  waitFor(pred: (line: string) => boolean): Promise<string> {
     return new Promise(resolve => {
-      const checkLine = (line: string) => {
+      const checkLine = (line: string): boolean => {
         if (pred(line)) {
-          this.off("line", checkLine);
-          resolve();
+          this.removeWatcher(checkLine);
+          resolve(line);
+          return true;
         }
+        return false;
       };
-      this.on("line", checkLine);
+      this.addWatcher(checkLine);
     });
   }
 }
