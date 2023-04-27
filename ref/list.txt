@@ -1,0 +1,106 @@
+P0: connected to active ID 4B
+type 4B
+  nmodes =5
+  nview  =3
+  baud   =115200
+  hwver  =00000004
+  swver  =10000000
+  M0 POWER SI = PCT
+    format count=1 type=0 chars=4 dp=0
+    RAW: 00000000 00000064    PCT: 00000000 00000064    SI: 00000000 00000064
+  M1 SPEED SI = PCT
+    format count=1 type=0 chars=4 dp=0
+    RAW: 00000000 00000064    PCT: 00000000 00000064    SI: 00000000 00000064
+  M2 POS SI = DEG
+    format count=1 type=2 chars=11 dp=0
+    RAW: 00000000 00000168    PCT: 00000000 00000064    SI: 00000000 00000168
+  M3 APOS SI = DEG
+    format count=1 type=1 chars=3 dp=0
+    RAW: 00000000 000000B3    PCT: 00000000 000000C8    SI: 00000000 000000B3
+  M4 CALIB SI = CAL
+    format count=2 type=1 chars=5 dp=0
+    RAW: 00000000 00000E10    PCT: 00000000 00000064    SI: 00000000 00000E10
+  M5 STATS SI = MIN
+    format count=14 type=1 chars=5 dp=0
+    RAW: 00000000 0000FFFF    PCT: 00000000 00000064    SI: 00000000 0000FFFF
+  C0: M1+M2+M3
+     speed PID: 00000BB8 00000064 00002328 00000438
+  position PID: 00002EE0 000003E8 00013880 00000000
+P1: no device detected
+P2: connected to active ID 3E
+type 3E
+  nmodes =8
+  nview  =0
+  baud   =115200
+  hwver  =10000000
+  swver  =10000000
+  M0 DISTL SI = CM
+    format count=1 type=1 chars=5 dp=1
+    RAW: 00000000 000009C4    PCT: 00000000 00000064    SI: 00000000 000000FA
+  M1 DISTS SI = CM
+    format count=1 type=1 chars=4 dp=1
+    RAW: 00000000 00000140    PCT: 00000000 00000064    SI: 00000000 00000020
+  M2 SINGL SI = CM
+    format count=1 type=1 chars=5 dp=1
+    RAW: 00000000 000009C4    PCT: 00000000 00000064    SI: 00000000 000000FA
+  M3 LISTN SI = ST
+    format count=1 type=0 chars=1 dp=0
+    RAW: 00000000 00000001    PCT: 00000000 00000064    SI: 00000000 00000001
+  M4 TRAW SI = uS
+    format count=1 type=2 chars=5 dp=0
+    RAW: 00000000 000038F1    PCT: 00000000 00000064    SI: 00000000 000038F1
+  M5 LIGHT SI = PCT
+    format count=4 type=0 chars=3 dp=0
+    RAW: 00000000 00000064    PCT: 00000000 00000064    SI: 00000000 00000064
+  M6 PING SI = PCT
+    format count=1 type=0 chars=1 dp=0
+    RAW: 00000000 00000001    PCT: 00000000 00000064    SI: 00000000 00000001
+  M7 ADRAW SI = PCT
+    format count=1 type=1 chars=4 dp=0
+    RAW: 00000000 00000400    PCT: 00000000 00000064    SI: 00000000 00000400
+  M8 CALIB SI = PCT
+    format count=7 type=0 chars=3 dp=0
+    RAW: 00000000 000000FF    PCT: 00000000 00000064    SI: 00000000 000000FF
+     speed PID: 00000000 00000000 00000000 00000000
+  position PID: 00000000 00000000 00000000 00000000
+P3: connected to active ID 3D
+type 3D
+  nmodes =9
+  nview  =0
+  baud   =115200
+  hwver  =10000000
+  swver  =10000000
+  M0 COLOR SI = IDX
+    format count=1 type=0 chars=2 dp=0
+    RAW: 00000000 0000000A    PCT: 00000000 00000064    SI: 00000000 0000000A
+  M1 REFLT SI = PCT
+    format count=1 type=0 chars=3 dp=0
+    RAW: 00000000 00000064    PCT: 00000000 00000064    SI: 00000000 00000064
+  M2 AMBI SI = PCT
+    format count=1 type=0 chars=3 dp=0
+    RAW: 00000000 00000064    PCT: 00000000 00000064    SI: 00000000 00000064
+  M3 LIGHT SI = PCT
+    format count=3 type=0 chars=3 dp=0
+    RAW: 00000000 00000064    PCT: 00000000 00000064    SI: 00000000 00000064
+  M4 RREFL SI = RAW
+    format count=2 type=1 chars=4 dp=0
+    RAW: 00000000 00000400    PCT: 00000000 00000064    SI: 00000000 00000400
+  M5 RGB I SI = RAW
+    format count=4 type=1 chars=4 dp=0
+    RAW: 00000000 00000400    PCT: 00000000 00000064    SI: 00000000 00000400
+  M6 HSV SI = RAW
+    format count=3 type=1 chars=4 dp=0
+    RAW: 00000000 00000168    PCT: 00000000 00000064    SI: 00000000 00000168
+  M7 SHSV SI = RAW
+    format count=4 type=1 chars=4 dp=0
+    RAW: 00000000 00000168    PCT: 00000000 00000064    SI: 00000000 00000168
+  M8 DEBUG SI = RAW
+    format count=4 type=1 chars=4 dp=0
+    RAW: 00000000 0000FFFF    PCT: 00000000 00000064    SI: 00000000 0000FFFF
+  M9 CALIB SI =
+    format count=7 type=1 chars=5 dp=0
+    RAW: 00000000 0000FFFF    PCT: 00000000 00000064    SI: 00000000 0000FFFF
+  C0: M0+M1+M5+M6
+     speed PID: 00000000 00000000 00000000 00000000
+  position PID: 00000000 00000000 00000000 00000000
+deltat=00000003
