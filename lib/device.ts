@@ -2,6 +2,7 @@ import _ from "lodash";
 import { BuildHAT } from "./buildhat";
 import { DeviceInfo } from "./devicelist";
 import { LinePredicate } from "./serial";
+import { TypedEventEmitter } from "./events";
 
 export type DeviceType<T extends Device> = {
   new (hat: BuildHAT, info: DeviceInfo, index: number): T;
@@ -43,11 +44,6 @@ interface SelectVar {
   format: Format;
 }
 
-const expandMode = (
-  m: number | SelectVar
-): [number] | [number, number, Format] =>
-  typeof m === "number" ? [m] : [m.mode, m.offset, m.format];
-
 const literalToRegExp = (lit: string): RegExp =>
   new RegExp(lit.split(/\s+/).map(_.escapeRegExp).join("\\s+"), "i");
 
@@ -64,10 +60,56 @@ const parseModeResponse = (line: string): number[] => {
   return m[1].split(/\s+/).map(Number);
 };
 
+type SelectEvents = {
+  update: [parms: number[]];
+};
+
+type SelectSpec = {
+  pred: LinePredicate;
+  args: string;
+};
+
+export class Select extends TypedEventEmitter<SelectEvents> {
+  dev: Device;
+  spec: SelectSpec;
+  watcher?: LinePredicate;
+
+  constructor(dev: Device, spec: SelectSpec) {
+    super();
+    this.dev = dev;
+    this.spec = spec;
+  }
+
+  async stop() {
+    if (this.watcher) {
+      const { dev } = this;
+      await dev.send(`select`);
+      dev.hat.removeWatcher(this.watcher);
+      this.watcher = undefined;
+    }
+  }
+
+  async start() {
+    const { dev, spec } = this;
+    await this.stop();
+    this.watcher = (line: string) => {
+      console.log({ line });
+      if (spec.pred(line)) {
+        this.emit("update", parseModeResponse(line));
+        return true;
+      }
+      return false;
+    };
+    dev.hat.addWatcher(this.watcher);
+    dev.send(`select ${spec.args}`);
+  }
+}
+
 export class Device {
   hat: BuildHAT;
   info: DeviceInfo;
   index: number;
+  #select?: Select;
 
   constructor(hat: BuildHAT, info: DeviceInfo, index: number) {
     this.hat = hat;
@@ -110,7 +152,12 @@ export class Device {
     await this.send(`bias ${n}`);
   }
 
-  private prepareSelect(modeOrVar: number | SelectVar) {
+  private prepareSelect(modeOrVar: number | SelectVar): SelectSpec {
+    const expandMode = (
+      m: number | SelectVar
+    ): [number] | [number, number, Format] =>
+      typeof m === "number" ? [m] : [m.mode, m.offset, m.format];
+
     const args = expandMode(modeOrVar);
     const pred = predicate(new RegExp(`^P${this.index}M${args[0]}:`, "i"));
     return { pred, args: args.join(" ") };
@@ -121,6 +168,11 @@ export class Device {
     const done = this.hat.waitFor(pred);
     await this.send(`selonce ${args}`);
     return parseModeResponse(await done);
+  }
+
+  async select(modeOrVar: number | SelectVar): Promise<Select> {
+    if (this.#select) await this.#select.stop();
+    return (this.#select = new Select(this, this.prepareSelect(modeOrVar)));
   }
 }
 

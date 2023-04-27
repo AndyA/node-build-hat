@@ -29,8 +29,12 @@ async function main() {
   const sensor = await hat.port(3, ColorSensor);
   await sensor.set(-1);
   await delay(300);
-  const rgb = await sensor.selOnce(5);
-  console.log({ rgb });
+  const rgb = await (await sensor.select(5))
+    .on("update", v => console.log(v))
+    .start();
+  // console.log({ rgb });
+
+  await delay(20000);
 
   await hat.halt();
 
