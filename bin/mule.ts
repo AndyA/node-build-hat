@@ -6,7 +6,7 @@ const dev = "/dev/serial0";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const LOG = true;
+const LOG = false;
 
 async function main() {
   const hat = new BuildHAT(dev);
@@ -28,11 +28,11 @@ async function main() {
 
   const sensor = await hat.port(3, ColorSensor);
   await sensor.set(-1);
-  await delay(300);
-  const rgb = await (await sensor.select(5))
+
+  const rgb = await sensor
+    .select(5)
     .on("update", v => console.log(v))
     .start();
-  // console.log({ rgb });
 
   await delay(20000);
 

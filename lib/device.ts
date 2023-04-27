@@ -83,7 +83,7 @@ export class Select extends TypedEventEmitter<SelectEvents> {
   async stop() {
     if (this.watcher) {
       const { dev } = this;
-      await dev.send(`select`);
+      await dev.stopSelect();
       dev.hat.removeWatcher(this.watcher);
       this.watcher = undefined;
     }
@@ -93,7 +93,6 @@ export class Select extends TypedEventEmitter<SelectEvents> {
     const { dev, spec } = this;
     await this.stop();
     this.watcher = (line: string) => {
-      console.log({ line });
       if (spec.pred(line)) {
         this.emit("update", parseModeResponse(line));
         return true;
@@ -170,8 +169,13 @@ export class Device {
     return parseModeResponse(await done);
   }
 
-  async select(modeOrVar: number | SelectVar): Promise<Select> {
+  async stopSelect() {
     if (this.#select) await this.#select.stop();
+    this.#select = undefined;
+    await this.send(`select`);
+  }
+
+  select(modeOrVar: number | SelectVar): Select {
     return (this.#select = new Select(this, this.prepareSelect(modeOrVar)));
   }
 }
