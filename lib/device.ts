@@ -1,8 +1,8 @@
-import _ from "lodash";
 import { BuildHAT } from "./buildhat";
 import { DeviceInfo } from "./devicelist";
 import { LinePredicate } from "./serial";
 import { TypedEventEmitter } from "./events";
+import { predicate } from "./util";
 
 export type DeviceType<T extends Device> = {
   new (hat: BuildHAT, info: DeviceInfo, index: number): T;
@@ -43,16 +43,6 @@ interface SelectVar {
   offset: number;
   format: Format;
 }
-
-const literalToRegExp = (lit: string): RegExp =>
-  new RegExp(lit.split(/\s+/).map(_.escapeRegExp).join("\\s+"), "i");
-
-const predicate = (test: string | RegExp | LinePredicate): LinePredicate =>
-  typeof test === "string"
-    ? predicate(literalToRegExp(test))
-    : test instanceof RegExp
-    ? (line: string) => test.test(line)
-    : test;
 
 const parseModeResponse = (line: string): number[] => {
   const m = line.match(/^P\d+M\d+:\s*(.*)/);

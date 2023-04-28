@@ -56,7 +56,9 @@ const deviceNames: Record<string, DeviceTypeInfo> = {
   "76": { class: Motor, desc: "Large Angular Motor (Grey)" }, // 88017
 };
 
-export const parseDeviceList = (list: string[]): DeviceList => {
+type DeviceParser = (idx: number) => DeviceInfo | null;
+
+export const makeDeviceParser = (list: string[]): DeviceParser => {
   const getLine = (): string => {
     if (!list.length) throw new Error(`Device list truncated`);
     return list.shift() as string;
@@ -114,7 +116,7 @@ export const parseDeviceList = (list: string[]): DeviceList => {
     return { name, unit, format: { count, type, chars, dp }, limits };
   };
 
-  const parseDevice = (idx: number): DeviceInfo | null => {
+  const parseDevice: DeviceParser = idx => {
     const hdr = getLine();
 
     if (!hdr.startsWith(`P${idx}:`))
@@ -145,5 +147,11 @@ export const parseDeviceList = (list: string[]): DeviceList => {
     return { type, vars, modes, combi, pids };
   };
 
-  return _.range(4).map(parseDevice);
+  return parseDevice;
 };
+
+export const parseDeviceList = (list: string[]): DeviceList =>
+  _.range(4).map(makeDeviceParser(list));
+
+export const parseDevice = (list: string[], index: number): DeviceInfo | null =>
+  makeDeviceParser(list)(index);

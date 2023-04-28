@@ -1,12 +1,15 @@
 import _ from "lodash";
-import { DeviceList, parseDeviceList } from "./devicelist";
+import { DeviceList, parseDevice, parseDeviceList } from "./devicelist";
 import { SerialDevice, SerialDeviceEvents } from "./serial";
 import { Device, DeviceType } from "./device";
+import { predicate } from "./util";
 
 const baudRate = 115200;
 const deltat = (line: string): boolean => /^deltat=/.test(line);
 
 export type BuildHATEvents = SerialDeviceEvents & {
+  connect: [port: number];
+  disconnect: [port: number];
   halt: [];
 };
 
@@ -16,6 +19,52 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
 
   constructor(path: string) {
     super(path, baudRate);
+    void this.initialise();
+  }
+
+  private async initialise() {
+    await this.send([]);
+    await this.send("echo 0");
+    await this.devices();
+    this.installWatchers();
+  }
+
+  private installWatchers() {
+    // Disconnect handler
+    this.addWatcher(line => {
+      const m = line.match(/^P(\d+):\s+disconnected/i);
+      if (!m) return false;
+
+      const port = Number(m[1]);
+      this.devices().then(devices => {
+        devices[port] = null;
+        this.emit("disconnect", port);
+      });
+
+      return true;
+    });
+
+    // Connect handler
+    this.addWatcher(line => {
+      const m = line.match(/^P(\d+):\s+connecting\b/i);
+      if (!m) return false;
+
+      const port = Number(m[1]);
+
+      const readDevice = async () => {
+        const lines = await this.keepLines(predicate(`P${port}: established`));
+        const header = predicate(`P${port}: connected`);
+        while (lines.length && !header(lines[0])) lines.shift();
+        const info = parseDevice(lines.slice(0, -1), port);
+        const devices = await this.devices();
+        devices[port] = info;
+        this.emit("connect", port);
+      };
+
+      void readDevice();
+
+      return true;
+    });
   }
 
   async devices(): Promise<DeviceList> {

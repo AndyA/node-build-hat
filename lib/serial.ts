@@ -95,26 +95,29 @@ export class SerialDevice<
     return rv;
   }
 
+  keepLines(pred: LinePredicate): Promise<string[]> {
+    return new Promise<string[]>(async resolve => {
+      const lines: string[] = [];
+      const keepLine = (line: string) => {
+        if (line.length) lines.push(line);
+        if (pred(line)) {
+          this.off("line", keepLine);
+          resolve(lines);
+        }
+      };
+      this.on("line", keepLine);
+    });
+  }
+
   async wait(
     cmd: string | string[],
     pred: (line: string) => boolean
   ): Promise<string[]> {
-    const lines: string[] = [];
-    await this.txn(
-      () =>
-        new Promise<string[]>(async resolve => {
-          const keepLine = (line: string) => {
-            if (line.length) lines.push(line);
-            if (pred(line)) {
-              this.off("line", keepLine);
-              resolve(lines);
-            }
-          };
-          this.on("line", keepLine);
-          await this.immediate(cmd);
-        })
-    );
-    return lines;
+    return this.txn(async () => {
+      const lines = this.keepLines(pred);
+      await this.immediate(cmd);
+      return lines;
+    });
   }
 
   async send(cmd: string | string[]): Promise<void> {
