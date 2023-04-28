@@ -4,7 +4,7 @@ from buildhat import Hat, ColorSensor
 
 Hat(debug=True)
 
-color = ColorSensor('D')
+color = ColorSensor('C')
 
 print("HSV", color.get_color_hsv())
 print("RGBI", color.get_color_rgbi())

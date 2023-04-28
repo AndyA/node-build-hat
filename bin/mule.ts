@@ -36,7 +36,7 @@ async function main() {
   await motor.combi(0, ["speed", "pos", "apos"]);
   await motor.select(0);
   await motor.plimit(1);
-  // await motor.bias(0.4);
+  await motor.bias(0.4);
   await motor.pid({
     pvport: motor,
     pvmode: 0,
