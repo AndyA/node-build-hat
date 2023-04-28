@@ -19,6 +19,7 @@ export interface DeviceTypeInfo {
 }
 
 export interface DeviceMode {
+  index: number;
   name: string;
   unit: string;
   format: { count: number; type: number; chars: number; dp: number };
@@ -29,31 +30,31 @@ export interface DeviceInfo {
   type: DeviceTypeInfo;
   vars: Record<string, number>;
   modes: DeviceMode[];
-  combi: string[];
+  combi: Record<number, string>;
   pids: Record<string, number[]>;
 }
 
 export type DeviceList = (DeviceInfo | null)[];
 
-const deviceNames: Record<string, DeviceTypeInfo> = {
-  "1": { class: PassiveMotor, desc: "Passive Motor" },
-  "2": { class: PassiveMotor, desc: "Passive Motor" },
-  "8": { class: Light, desc: "Light" },
-  "34": { class: TiltSensor, desc: "WeDo 2.0 Tilt Sensor" },
-  "35": { class: MotionSensor, desc: "Motion Sensor" },
-  "37": { class: ColorDistanceSensor, desc: "Color & Distance Sensor" },
-  "61": { class: ColorSensor, desc: "Color Sensor" },
-  "62": { class: DistanceSensor, desc: "Distance Sensor" },
-  "63": { class: ForceSensor, desc: "Force Sensor" },
-  "64": { class: Matrix, desc: "3x3 Color Light Matrix" },
-  "38": { class: Motor, desc: "Medium Linear Motor" },
-  "46": { class: Motor, desc: "Large Motor" },
-  "47": { class: Motor, desc: "XL Motor" },
-  "48": { class: Motor, desc: "Medium Angular Motor (Cyan)" },
-  "49": { class: Motor, desc: "Large Angular Motor (Cyan)" },
-  "65": { class: Motor, desc: "Small Angular Motor" },
-  "75": { class: Motor, desc: "Medium Angular Motor (Grey)" },
-  "76": { class: Motor, desc: "Large Angular Motor (Grey)" }, // 88017
+const deviceNames: Record<number, DeviceTypeInfo> = {
+  1: { class: PassiveMotor, desc: "Passive Motor" },
+  2: { class: PassiveMotor, desc: "Passive Motor" },
+  8: { class: Light, desc: "Light" },
+  34: { class: TiltSensor, desc: "WeDo 2.0 Tilt Sensor" },
+  35: { class: MotionSensor, desc: "Motion Sensor" },
+  37: { class: ColorDistanceSensor, desc: "Color & Distance Sensor" },
+  38: { class: Motor, desc: "Medium Linear Motor" },
+  46: { class: Motor, desc: "Large Motor" },
+  47: { class: Motor, desc: "XL Motor" },
+  48: { class: Motor, desc: "Medium Angular Motor (Cyan)" },
+  49: { class: Motor, desc: "Large Angular Motor (Cyan)" },
+  61: { class: ColorSensor, desc: "Color Sensor" },
+  62: { class: DistanceSensor, desc: "Distance Sensor" },
+  63: { class: ForceSensor, desc: "Force Sensor" },
+  64: { class: Matrix, desc: "3x3 Color Light Matrix" },
+  65: { class: Motor, desc: "Small Angular Motor" },
+  75: { class: Motor, desc: "Medium Angular Motor (Grey)" },
+  76: { class: Motor, desc: "Large Angular Motor (Grey)" }, // 88017
 };
 
 type DeviceParser = (idx: number) => DeviceInfo | null;
@@ -86,12 +87,13 @@ export const makeDeviceParser = (list: string[]): DeviceParser => {
   const parseHex = (n: string) => parseInt(n, 16);
   const lc = (s: string) => s.toLowerCase();
 
-  const parseMode = (idx: number): DeviceMode => {
+  const parseMode = (index: number): DeviceMode => {
     const mode = getLine();
     const mm = mode.match(/^\s*M(\d)\s+(\S+(?:\s+\S+)*)\s+SI\s*=\s*(\S*)/i);
     if (!mm) throw new Error(`Bad mode header: "${mode}"`);
     const [mn, name, unit] = mm.slice(1).map(lc);
-    if (Number(mn) !== idx) throw new Error(`Bad mode number: ${mn} != ${idx}`);
+    if (Number(mn) !== index)
+      throw new Error(`Bad mode number: ${mn} != ${index}`);
 
     const format = getLine();
     const fm = format.match(
@@ -113,20 +115,20 @@ export const makeDeviceParser = (list: string[]): DeviceParser => {
       .fromPairs()
       .value();
 
-    return { name, unit, format: { count, type, chars, dp }, limits };
+    return { index, name, unit, format: { count, type, chars, dp }, limits };
   };
 
-  const parseDevice: DeviceParser = idx => {
+  const parseDevice: DeviceParser = index => {
     const hdr = getLine();
 
-    if (!hdr.startsWith(`P${idx}:`))
-      throw new Error(`Bad header for P${idx}: "${hdr}"`);
+    if (!hdr.startsWith(`P${index}:`))
+      throw new Error(`Bad header for P${index}: "${hdr}"`);
     if (/^P\d:\s+no\s+device/i.test(hdr)) return null;
     if (!/^P\d:\s+connected/i.test(hdr))
-      throw new Error(`Expected "P${idx}: connected...", got "${hdr}"`);
+      throw new Error(`Expected "P${index}: connected...", got "${hdr}"`);
 
     const typeId = parseHex(expect(/^\s*type\s+(\S+)/i)[0]);
-    const type = deviceNames[String(typeId)] || {
+    const type = deviceNames[typeId] || {
       class: Device,
       desc: `Unknown device ${typeId}`,
     };
@@ -137,7 +139,9 @@ export const makeDeviceParser = (list: string[]): DeviceParser => {
       .value();
 
     const modes = _.range((vars.nmodes || -1) + 1).map(parseMode);
-    const combi = allof(/^\s*C\d+:\s*(\S+)/i).flat();
+    const combi = _(allof(/^\s*C(\d+):\s*(\S+)/i))
+      .fromPairs()
+      .value();
 
     const pids = _(allof(/^\s*(\w+)\s+PID:\s*(.+)/i))
       .map(([name, params]) => [name, params.split(/\s+/).map(parseHex)])

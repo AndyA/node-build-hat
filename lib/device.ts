@@ -1,27 +1,27 @@
 import { BuildHAT } from "./buildhat";
-import { DeviceInfo } from "./devicelist";
-import { LinePredicate } from "./serial";
-import { TypedEventEmitter } from "./events";
+import { DeviceInfo, DeviceMode } from "./devicelist";
 import { predicate } from "./util";
+import _ from "lodash";
+import { Select, SelectOptions, SelectSpec, parseModeResponse } from "./select";
 
 export type DeviceType<T extends Device> = {
   new (hat: BuildHAT, info: DeviceInfo, index: number): T;
 };
 
-interface Cycle {
+type Cycle = {
   shape: "square" | "sine" | "triangle";
   min: number;
   max: number;
   period: number;
   phase?: number;
-}
+};
 
-interface OneShot {
+type OneShot = {
   shape: "pulse" | "ramp";
   start: number;
   end: number;
   duration: number;
-}
+};
 
 type WaveForm = Cycle | OneShot;
 
@@ -36,69 +36,47 @@ const isOneShot = (n: WaveForm | number): n is OneShot =>
 const isWaveForm = (n: WaveForm | number): n is WaveForm =>
   isCycle(n) || isOneShot(n);
 
+type ModeName = string | number;
+
+const isModeName = (thing: unknown): thing is ModeName =>
+  typeof thing === "string" || typeof thing === "number";
+
 type Format = "u1" | "s1" | "u2" | "s2" | "u4" | "s4" | "f4";
 
-interface SelectVar {
-  mode: number;
+type SelectVar = {
+  mode: ModeName;
   offset: number;
   format: Format;
-}
-
-const parseModeResponse = (line: string): number[] => {
-  const m = line.match(/^P\d+M\d+:\s*(.*)/);
-  if (!m) throw new Error(`Bad mode response: "${line}"`);
-  return m[1].split(/\s+/).map(Number);
 };
 
-type SelectEvents = {
-  update: [parms: number[]];
+type CombiSlot = {
+  mode: ModeName;
+  offset?: number;
 };
 
-type SelectSpec = {
-  pred: LinePredicate;
-  args: string;
+const isCombiSlot = (thing: unknown): thing is CombiSlot =>
+  !!thing && typeof thing === "object" && "mode" in thing;
+
+type PidSpec = {
+  pvport: number | Device;
+  pvmode: ModeName;
+  pvoffset: number;
+  pvformat: Format;
+  pvscale: number;
+  pvunwrap: number;
+  Kp: number;
+  Ki: number;
+  Kd: number;
+  windup: number;
 };
-
-export class Select extends TypedEventEmitter<SelectEvents> {
-  dev: Device;
-  spec: SelectSpec;
-  watcher?: LinePredicate;
-
-  constructor(dev: Device, spec: SelectSpec) {
-    super();
-    this.dev = dev;
-    this.spec = spec;
-  }
-
-  stop() {
-    if (this.watcher) {
-      const { dev } = this;
-      // We don't wait for this select to execute. That should be
-      // OK because of the command serialisation mechanism.
-      void dev.send(`select`);
-      dev.hat.removeWatcher(this.watcher);
-      this.watcher = undefined;
-    }
-  }
-
-  async start() {
-    const { dev, spec } = this;
-    this.stop();
-    this.watcher = (line: string) => {
-      if (!spec.pred(line)) return false;
-      this.emit("update", parseModeResponse(line));
-      return true;
-    };
-    dev.hat.addWatcher(this.watcher);
-    dev.send(`select ${spec.args}`);
-  }
-}
 
 export class Device {
   hat: BuildHAT;
   info: DeviceInfo;
   index: number;
+  #cleanup = false;
   #select?: Select;
+  #modeIndex?: Record<string, DeviceMode>;
 
   constructor(hat: BuildHAT, info: DeviceInfo, index: number) {
     this.hat = hat;
@@ -107,17 +85,42 @@ export class Device {
     hat.on("halt", () => this.stopSelect());
   }
 
+  destroy(): void {
+    this.#cleanup = true;
+    this.stopSelect();
+  }
+
   private withPort(cmd: string | string[]): string[] {
     if (!Array.isArray(cmd)) return this.withPort([cmd]);
     return [`port ${this.index}`, ...cmd];
   }
 
   async immediate(cmd: string | string[]): Promise<void> {
-    await this.hat.immediate(this.withPort(cmd));
+    if (!this.#cleanup) await this.hat.immediate(this.withPort(cmd));
   }
 
   async send(cmd: string | string[]): Promise<void> {
-    await this.hat.send(this.withPort(cmd));
+    if (!this.#cleanup) await this.hat.send(this.withPort(cmd));
+  }
+
+  private get modeIndex(): Record<string, DeviceMode> {
+    return (this.#modeIndex =
+      this.#modeIndex || _.keyBy(this.info.modes, "name"));
+  }
+
+  private lookupMode(mode: ModeName): DeviceMode {
+    if (typeof mode === "number") return this.info.modes[mode];
+    return this.modeIndex[mode.toLowerCase()];
+  }
+
+  findMode(mode: ModeName): DeviceMode {
+    const info = this.lookupMode(mode);
+    if (!info) throw new Error(`No mode: ${mode}`);
+    return info;
+  }
+
+  resolveMode(mode: ModeName): number {
+    return this.findMode(mode).index;
   }
 
   async set(n: number | WaveForm): Promise<void> {
@@ -142,22 +145,34 @@ export class Device {
     await this.send(`bias ${n}`);
   }
 
-  private prepareSelect(modeOrVar: number | SelectVar): SelectSpec {
-    const expandMode = (
-      m: number | SelectVar
-    ): [number] | [number, number, Format] =>
-      typeof m === "number" ? [m] : [m.mode, m.offset, m.format];
-
-    const args = expandMode(modeOrVar);
-    const pred = predicate(new RegExp(`^P${this.index}M${args[0]}:`, "i"));
-    return { pred, args: args.join(" ") };
+  async plimit(limit: number): Promise<void> {
+    await this.send(`plimit ${limit}`);
   }
 
-  async selOnce(modeOrVar: number | SelectVar): Promise<number[]> {
+  async pwm(limit: number): Promise<void> {
+    await this.send(`pwm`);
+  }
+
+  private prepareSelect(modeOrVar: ModeName | SelectVar): SelectSpec {
+    const expandMode = (m: ModeName | SelectVar) =>
+      isModeName(m) ? [m] : [m.mode, m.offset, m.format];
+
+    const [m, ...args] = expandMode(modeOrVar);
+    const mode = this.findMode(m);
+    const pred = predicate(`P${this.index}M${mode.index}:`);
+    return { pred, args: [mode.index, ...args].join(" "), mode };
+  }
+
+  async selOnce(modeOrVar: ModeName | SelectVar): Promise<number[]> {
     const { args, pred } = this.prepareSelect(modeOrVar);
     const done = this.hat.waitFor(pred);
     await this.send(`selonce ${args}`);
     return parseModeResponse(await done);
+  }
+
+  async select(modeOrVar: ModeName | SelectVar) {
+    const { args } = this.prepareSelect(modeOrVar);
+    await this.send(`select ${args}`);
   }
 
   stopSelect() {
@@ -165,9 +180,50 @@ export class Device {
     this.#select = undefined;
   }
 
-  select(modeOrVar: number | SelectVar): Select {
+  selectStream(
+    modeOrVar: ModeName | SelectVar,
+    opt: SelectOptions = {}
+  ): Select {
     this.stopSelect();
-    return (this.#select = new Select(this, this.prepareSelect(modeOrVar)));
+    return (this.#select = new Select(
+      this,
+      this.prepareSelect(modeOrVar),
+      opt
+    ));
+  }
+
+  async combi(slot: number, modes: (CombiSlot | ModeName)[] = []) {
+    const spec = modes
+      .map(mode => (isCombiSlot(mode) ? mode : { mode }))
+      .flatMap(({ mode, offset }) => [this.resolveMode(mode), offset || 0])
+      .join(" ");
+    await this.send(`combi ${slot} ${spec}`);
+  }
+
+  async pid({
+    pvport,
+    pvmode,
+    pvoffset,
+    pvformat,
+    pvscale,
+    pvunwrap,
+    Kp,
+    Ki,
+    Kd,
+    windup,
+  }: PidSpec) {
+    const pvdev =
+      pvport instanceof Device ? pvport : await this.hat.port(0, Device);
+    const mode = pvdev.resolveMode(pvmode);
+    const args = [
+      [pvdev.index, mode, pvoffset, pvformat],
+      [pvscale, pvunwrap, Kp, Ki, Kd, windup],
+    ]
+      .flat()
+      .map(x => x || 0)
+      .join(" ");
+
+    await this.send(`pid ${args}`);
   }
 }
 

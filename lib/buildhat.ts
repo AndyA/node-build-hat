@@ -16,13 +16,14 @@ export type BuildHATEvents = SerialDeviceEvents & {
 export class BuildHAT extends SerialDevice<BuildHATEvents> {
   #devices?: Promise<DeviceList>;
   #ports: Record<number, Device> = {};
+  #ready: Promise<void>;
 
   constructor(path: string) {
     super(path, baudRate);
-    void this.initialise();
+    this.#ready = this.initialise();
   }
 
-  private async initialise() {
+  private async initialise(): Promise<void> {
     await this.send([]);
     await this.send("echo 0");
     await this.devices();
@@ -38,6 +39,11 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
       const port = Number(m[1]);
       this.devices().then(devices => {
         devices[port] = null;
+        const dev = this.#ports[port];
+        if (dev) {
+          delete this.#ports[port];
+          dev.destroy();
+        }
         this.emit("disconnect", port);
       });
 
@@ -65,6 +71,13 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
 
       return true;
     });
+
+    // Errors
+    this.addWatcher(line => {
+      if (!/^Error/i.test(line)) return false;
+      this.emit("error", new Error(`Error from BuildHAT`));
+      return true;
+    });
   }
 
   async devices(): Promise<DeviceList> {
@@ -72,9 +85,13 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
       this.#devices || this.wait("list", deltat).then(parseDeviceList));
   }
 
+  ready(): Promise<void> {
+    return this.#ready;
+  }
+
   halt(): void {
     this.immediate(
-      _.range(4).flatMap(port => [`port ${port}`, `set 0`, `select`])
+      _.range(4).flatMap(port => [`port ${port}`, `pwm`, `set 0`, `select`])
     ).then(() => this.emit("halt"));
   }
 
@@ -90,7 +107,7 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
     const port = new clazz(this, info, index);
 
     if (!(port instanceof type))
-      throw new Error(`Port ${index} is a ${clazz} not a ${type}`);
+      throw new Error(`Port ${index} is a ${clazz.name} not a ${type.name}`);
 
     ports[index] = port;
     return port;
