@@ -80,10 +80,12 @@ export class Select extends TypedEventEmitter<SelectEvents> {
     this.spec = spec;
   }
 
-  async stop() {
+  stop() {
     if (this.watcher) {
       const { dev } = this;
-      await dev.stopSelect();
+      // We don't wait for this select to execute. That should be
+      // OK because of the command serialisation mechanism.
+      void dev.send(`select`);
       dev.hat.removeWatcher(this.watcher);
       this.watcher = undefined;
     }
@@ -91,13 +93,11 @@ export class Select extends TypedEventEmitter<SelectEvents> {
 
   async start() {
     const { dev, spec } = this;
-    await this.stop();
+    this.stop();
     this.watcher = (line: string) => {
-      if (spec.pred(line)) {
-        this.emit("update", parseModeResponse(line));
-        return true;
-      }
-      return false;
+      if (!spec.pred(line)) return false;
+      this.emit("update", parseModeResponse(line));
+      return true;
     };
     dev.hat.addWatcher(this.watcher);
     dev.send(`select ${spec.args}`);
@@ -169,13 +169,12 @@ export class Device {
     return parseModeResponse(await done);
   }
 
-  async stopSelect() {
-    if (this.#select) await this.#select.stop();
-    this.#select = undefined;
-    await this.send(`select`);
+  stopSelect() {
+    this.#select?.stop();
   }
 
   select(modeOrVar: number | SelectVar): Select {
+    this.stopSelect();
     return (this.#select = new Select(this, this.prepareSelect(modeOrVar)));
   }
 }

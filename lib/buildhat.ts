@@ -6,8 +6,6 @@ import { Device, DeviceType } from "./device";
 const baudRate = 115200;
 const deltat = (line: string): boolean => /^deltat=/.test(line);
 
-// type getType<T> = T extends Device<infer U> ? U : never
-
 export class BuildHAT extends SerialDevice {
   #devices?: Promise<DeviceList>;
   #ports: Record<number, Device> = {};
@@ -22,7 +20,9 @@ export class BuildHAT extends SerialDevice {
   }
 
   async halt(): Promise<void> {
-    await this.immediate(_.range(4).flatMap(port => [`port ${port}`, `set 0`]));
+    await this.immediate(
+      _.range(4).flatMap(port => [`port ${port}`, `set 0`, `select`])
+    );
   }
 
   async port<T extends Device>(index: number, type: DeviceType<T>): Promise<T> {
