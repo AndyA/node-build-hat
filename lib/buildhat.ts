@@ -1,12 +1,16 @@
 import _ from "lodash";
 import { DeviceList, parseDeviceList } from "./devicelist";
-import { SerialDevice } from "./serial";
+import { SerialDevice, SerialDeviceEvents } from "./serial";
 import { Device, DeviceType } from "./device";
 
 const baudRate = 115200;
 const deltat = (line: string): boolean => /^deltat=/.test(line);
 
-export class BuildHAT extends SerialDevice {
+export type BuildHATEvents = SerialDeviceEvents & {
+  halt: [];
+};
+
+export class BuildHAT extends SerialDevice<BuildHATEvents> {
   #devices?: Promise<DeviceList>;
   #ports: Record<number, Device> = {};
 
@@ -19,10 +23,10 @@ export class BuildHAT extends SerialDevice {
       this.#devices || this.wait("list", deltat).then(parseDeviceList));
   }
 
-  async halt(): Promise<void> {
-    await this.immediate(
+  halt(): void {
+    this.immediate(
       _.range(4).flatMap(port => [`port ${port}`, `set 0`, `select`])
-    );
+    ).then(() => this.emit("halt"));
   }
 
   async port<T extends Device>(index: number, type: DeviceType<T>): Promise<T> {

@@ -114,6 +114,7 @@ export class Device {
     this.hat = hat;
     this.info = info;
     this.index = index;
+    hat.on("halt", () => this.stopSelect());
   }
 
   private withPort(cmd: string | string[]): string[] {
@@ -171,6 +172,7 @@ export class Device {
 
   stopSelect() {
     this.#select?.stop();
+    this.#select = undefined;
   }
 
   select(modeOrVar: number | SelectVar): Select {

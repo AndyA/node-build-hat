@@ -36,8 +36,7 @@ async function main() {
 
   await delay(20000);
 
-  await hat.halt();
-
+  hat.halt();
   hat.close();
 }
 

@@ -8,7 +8,7 @@ interface LogMessage {
   line: string;
 }
 
-type SerialDeviceEvents = {
+export type SerialDeviceEvents = {
   line: [line: string];
   error: [err: Error];
   log: [msg: LogMessage];
@@ -17,7 +17,9 @@ type SerialDeviceEvents = {
 
 export type LinePredicate = (line: string) => boolean;
 
-export class SerialDevice extends TypedEventEmitter<SerialDeviceEvents> {
+export class SerialDevice<
+  E extends SerialDeviceEvents
+> extends TypedEventEmitter<E> {
   #port: SerialPort;
   #initDone = false;
   #queue: (() => Promise<unknown>)[] = [];
