@@ -3,13 +3,18 @@ import { ColorSensor, Device, DistanceSensor, Motor } from "../lib/device";
 
 const dev = "/dev/serial0";
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const LOG = false;
+const LOG = true;
+const RESET = false;
 
 async function main() {
   console.log(`Starting...`);
   const hat = new BuildHAT(dev);
+  if (RESET) {
+    await hat.reset();
+    return;
+  }
 
   hat
     .on("error", err => console.error(err))

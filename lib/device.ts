@@ -149,7 +149,7 @@ export class Device {
     await this.send(`plimit ${limit}`);
   }
 
-  async pwm(limit: number): Promise<void> {
+  async pwm(): Promise<void> {
     await this.send(`pwm`);
   }
 

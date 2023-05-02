@@ -1,11 +1,15 @@
 import _ from "lodash";
+import gpio from "rpi-gpio";
 import { DeviceList, parseDevice, parseDeviceList } from "./devicelist";
 import { SerialDevice, SerialDeviceEvents } from "./serial";
 import { Device, DeviceType } from "./device";
 import { predicate } from "./util";
 
+const gpiop = gpio.promise;
+
 const baudRate = 115200;
 const deltat = (line: string): boolean => /^deltat=/.test(line);
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export type BuildHATEvents = SerialDeviceEvents & {
   connect: [port: number];
@@ -24,10 +28,27 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
   }
 
   private async initialise(): Promise<void> {
+    await this.bootstrap();
+
     await this.send([]);
     await this.send("echo 0");
     await this.devices();
+
     this.installWatchers();
+  }
+
+  private async bootstrap(): Promise<void> {
+    const line = (line: Buffer) => {
+      console.log(`RAW:`, line);
+    };
+
+    this.on("raw", line);
+    await this.immediate([]);
+    await this.immediate([]);
+    await this.immediate([]);
+    console.log(`Sent...`);
+    await delay(10000);
+    this.off("raw", line);
   }
 
   private installWatchers() {
@@ -89,6 +110,25 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
     return this.#ready;
   }
 
+  async reset(): Promise<void> {
+    const RESET = 4;
+    const BOOT0 = 22;
+
+    await gpio.setMode(gpio.MODE_BCM);
+    await gpiop.setup(RESET, gpiop.DIR_OUT);
+    await gpiop.setup(BOOT0, gpiop.DIR_OUT);
+
+    await gpiop.write(RESET, false);
+    await gpiop.write(BOOT0, false);
+
+    await delay(100);
+    await gpiop.write(RESET, true);
+    await delay(100);
+    await gpiop.write(RESET, false);
+
+    await delay(500);
+  }
+
   halt(): void {
     this.immediate(
       _.range(4).flatMap(port => [`port ${port}`, `pwm`, `set 0`, `select`])
@@ -96,6 +136,8 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
   }
 
   async port<T extends Device>(index: number, type: DeviceType<T>): Promise<T> {
+    await this.ready();
+
     const ports = this.#ports;
 
     if (ports[index]) return ports[index] as T;

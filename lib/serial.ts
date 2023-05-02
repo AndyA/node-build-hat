@@ -9,6 +9,7 @@ interface LogMessage {
 }
 
 export type SerialDeviceEvents = {
+  raw: [buf: Buffer];
   line: [line: string];
   error: [err: Error];
   log: [msg: LogMessage];
@@ -16,6 +17,12 @@ export type SerialDeviceEvents = {
 };
 
 export type LinePredicate = (line: string) => boolean;
+
+const write = (port: SerialPort, data: string) =>
+  new Promise(resolve => {
+    port.write(data);
+    port.drain(resolve);
+  });
 
 export class SerialDevice<
   E extends SerialDeviceEvents
@@ -35,11 +42,16 @@ export class SerialDevice<
     if (!this.#initDone) {
       const port = this.#port;
       port.open();
-      port.pipe(split2("\r\n")).on("data", (raw: string) => {
-        const line = raw.trimEnd();
-        this.emit("log", { type: "rx", line });
-        if (!this.showWatchers(line)) this.emit("line", line);
-      });
+      port
+        .on("data", (buf: Buffer) => {
+          this.emit("log", { type: "rx", line: buf.toString("ascii") });
+          this.emit("raw", buf);
+        })
+        .pipe(split2("\r\n"))
+        .on("data", (raw: string) => {
+          const line = raw.trimEnd();
+          if (!this.showWatchers(line)) this.emit("line", line);
+        });
       this.#initDone = true;
     }
   }
@@ -66,15 +78,9 @@ export class SerialDevice<
   async immediate(cmd: string | string[]): Promise<void> {
     if (!Array.isArray(cmd)) return this.immediate([cmd]);
 
-    const wr = util.promisify(this.#port.write.bind(this.#port)) as (
-      command: string
-    ) => Promise<unknown>;
-
     await this.init();
-
-    const line = cmd.join("; ");
-
-    await wr(`${line}\r`);
+    const line = `${cmd.join("; ")}\r`;
+    await write(this.#port, line);
     this.emit("log", { type: "tx", line });
   }
 
