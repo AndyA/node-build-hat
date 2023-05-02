@@ -38,17 +38,17 @@ export class BuildHAT extends SerialDevice<BuildHATEvents> {
   }
 
   private async bootstrap(): Promise<void> {
-    const line = (line: Buffer) => {
-      console.log(`RAW:`, line);
+    const raw = (buf: Buffer) => {
+      console.log(`RAW:`, buf);
     };
 
-    this.on("raw", line);
+    this.on("raw", raw);
     await this.immediate([]);
     await this.immediate([]);
     await this.immediate([]);
     console.log(`Sent...`);
     await delay(10000);
-    this.off("raw", line);
+    this.off("raw", raw);
   }
 
   private installWatchers() {
